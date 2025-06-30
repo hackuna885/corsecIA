@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORSEC IA</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/animate.min.css">
+</head>
+<body>
+    <div class="contenedor">
+        <h1>Descubre <span class="gradient-text">CORSEC IA</span></h1>
+        <form id="formulario1">
+            <div>
+                <label for="consulta" class="sr-only">Escribe tu consulta aquí:</label>
+                <textarea name="consulta" id="consulta" placeholder="Escribe tu consulta ..." rows="5"></textarea>
+            </div>
+            <input type="submit" value="Consultar">
+            <div id="loading" style="display: none; text-align: center; margin-top: 10px;">
+                Cargando... <span style="font-size: 1.5em;">⏳</span>
+            </div>
+            <pre id="resultado" class="resultado-exito"></pre>
+            <p id="error-message" class="resultado-error" style="display: none;"></p>
+        </form>
+    </div>
+
+    <script>
+        const formulario1 = document.querySelector("#formulario1");
+        const consultaTextarea = document.querySelector("#consulta");
+        const botonConsultar = document.querySelector("input[type='submit']");
+        const resultadoPre = document.querySelector("#resultado");
+        const errorMessageP = document.querySelector("#error-message");
+        const loadingDiv = document.querySelector("#loading");
+
+        formulario1.addEventListener("submit", async evento => { // Usamos async para await
+            evento.preventDefault();
+
+            const consulta = consultaTextarea.value.trim();
+
+            // 1. Validación del lado del cliente
+            if (consulta === "") {
+                mostrarError("Por favor, escribe una consulta antes de enviar.");
+                return; // Detener la ejecución
+            }
+
+            // Ocultar mensajes anteriores
+            ocultarMensajes();
+
+            // Desactivar el botón y mostrar el mensaje de espera/carga
+            botonConsultar.disabled = true;
+            botonConsultar.value = "Consultando...";
+            loadingDiv.style.display = 'block'; // Mostrar animación de carga
+
+            const datosFormulario = new FormData();
+            datosFormulario.append("consulta", consulta);
+
+            try {
+                const respuesta = await fetch("app/php/consulta.php", {
+                    method: "POST",
+                    body: datosFormulario
+                });
+
+                // Verificar si la respuesta HTTP es exitosa (código 2xx)
+                if (!respuesta.ok) {
+                    const errorData = await respuesta.json().catch(() => ({ error: `Error HTTP: ${respuesta.status}` }));
+                    throw new Error(errorData.error || `Error del servidor: ${respuesta.statusText}`);
+                }
+
+                const data = await respuesta.json();
+
+                // 2. Manejo de Errores de la API (desde consulta.php)
+                if (data.error) {
+                    mostrarError(`Error de Gemini: ${data.error}`);
+                } else if (data.mensaje) {
+                    resultadoPre.innerHTML = data.mensaje;
+                    resultadoPre.classList.add('resultado-exito');
+                    // Limpiar la consulta después de un éxito
+                    consultaTextarea.value = '';
+                } else {
+                    mostrarError("La respuesta del servidor no tiene el formato esperado.");
+                    console.error("Respuesta inesperada del servidor:", data);
+                }
+
+            } catch (error) {
+                // 3. Feedback Visual para Errores
+                console.error('Error en la solicitud fetch:', error);
+                mostrarError(`Ocurrió un error al procesar tu consulta: ${error.message || 'Error desconocido'}. Por favor, inténtalo de nuevo.`);
+            } finally {
+                // Reactivar el botón y ocultar la carga
+                botonConsultar.disabled = false;
+                botonConsultar.value = "Consultar";
+                loadingDiv.style.display = 'none'; // Ocultar animación de carga
+            }
+        });
+
+        function mostrarError(mensaje) {
+            errorMessageP.textContent = mensaje;
+            errorMessageP.style.display = 'block';
+            resultadoPre.style.display = 'none'; // Ocultar resultado anterior
+            resultadoPre.innerHTML = ''; // Limpiar resultado anterior
+        }
+
+        function ocultarMensajes() {
+            errorMessageP.style.display = 'none';
+            errorMessageP.textContent = '';
+            resultadoPre.style.display = 'block'; // Asegurarse de que el pre esté visible para el resultado
+        }
+    </script>
+
+</body>
+</html>
